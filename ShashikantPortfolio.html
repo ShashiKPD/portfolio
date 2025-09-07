@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shashikant Prasad - Full-Stack Developer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* General Styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0A0A0A;
+            color: #EAEAEA;
+            overflow-x: hidden;
+            cursor: none; /* Hide the default cursor */
+        }
+        
+        a, .bento-box, button {
+            cursor: none; /* Apply custom cursor to links and boxes */
+        }
+
+        /* --- 3D Canvas --- */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+        }
+
+        /* --- Custom Cursor --- */
+        #cursor {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: width 0.2s, height 0.2s, background-color 0.2s, border 0.2s;
+            z-index: 9999;
+        }
+        #cursor.hover {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+        }
+
+        /* --- Grainy Texture --- */
+        .grainy {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.05;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><filter id="f"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23f)"/></svg>');
+        }
+        
+        /* --- Rim Edge Lighting --- */
+        .rim-glow-container::before, .rim-glow-container::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            height: 100vh;
+            width: 60vw;
+            pointer-events: none;
+            z-index: -1;
+            background: radial-gradient(50% 50% at 50% 50%, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 100%);
+            filter: blur(120px);
+        }
+        .rim-glow-container::before {
+            left: -30vw;
+        }
+        .rim-glow-container::after {
+            right: -30vw;
+        }
+
+        /* --- Bento Box Styling --- */
+        .bento-box {
+            background-color: rgba(26, 26, 26, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .bento-box:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+            background-color: rgba(26, 26, 26, 0.7);
+        }
+        
+        .tag {
+            background-color: rgba(255, 255, 255, 0.1); color: #a1a1aa;
+            padding: 4px 10px; border-radius: 9999px; font-size: 0.75rem;
+            font-weight: 500; backdrop-filter: blur(5px);
+        }
+
+        /* --- Modal Styling --- */
+        #modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px);
+            z-index: 1000; display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        #modal-overlay.active { opacity: 1; pointer-events: auto; }
+        #modal-content {
+            background-color: #121212; border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem; padding: 2rem; max-width: 600px; width: 90%;
+            transform: scale(0.95); transition: transform 0.3s ease;
+        }
+        #modal-overlay.active #modal-content { transform: scale(1); }
+        #modal-close {
+            position: absolute; top: 1rem; right: 1rem;
+            color: #a1a1aa; transition: color 0.2s;
+        }
+        #modal-close:hover { color: white; }
+        
+        /* --- On-Scroll Reveal Animation --- */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="cursor"></div>
+    <canvas id="bg-canvas"></canvas>
+    <div class="grainy"></div>
+
+    <div class="rim-glow-container relative z-10 min-h-screen px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <header class="py-6 reveal">
+            <nav class="flex justify-between items-center max-w-7xl mx-auto">
+                <a href="#" class="text-xl font-bold tracking-tighter">Shashikant Prasad</a>
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="#projects" class="text-zinc-400 hover:text-white transition">Projects</a>
+                    <a href="#skills" class="text-zinc-400 hover:text-white transition">Skills</a>
+                    <a href="#contact" class="text-zinc-400 hover:text-white transition">Contact</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="https://www.linkedin.com/in/shashikpd" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                    </a>
+                    <a href="https://github.com/shashiKPD" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.91 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    </a>
+                     <a href="https://leetcode.com/shashikpd" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21.5,13.5v-3h-9v3h9Zm-12-3h-9v3h9v-3ZM12.5,24h-3V16.5h3V24Zm-6,0h-3V16.5h3V24Zm12,0h-3V16.5h3V24ZM12.5,13.5h-3V0h3V13.5Zm-6,0h-3V0h3V13.5Zm12,0h-3V0h3V13.5Z"/></svg>
+                    </a>
+                </div>
+            </nav>
+        </header>
+
+        <main class="max-w-7xl mx-auto">
+            <!-- Hero Section -->
+            <section class="text-center py-20 lg:py-32 reveal">
+                <h1 class="text-5xl md:text-7xl font-extrabold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-zinc-200 to-zinc-500">
+                    Full-Stack Developer
+                </h1>
+                <p class="max-w-2xl mx-auto mt-6 text-lg text-zinc-400">
+                    A results-oriented Computer Science student with a strong foundation in full-stack web development and a passion for building intelligent, user-centric applications.
+                </p>
+                <a href="#projects" class="inline-block mt-8 px-8 py-3 rounded-full bg-white text-black font-semibold hover:bg-zinc-200 transition">
+                    View My Work
+                </a>
+            </section>
+
+            <!-- Achievement Section -->
+            <section id="achievement" class="py-16 reveal">
+                 <div class="text-center">
+                    <h2 class="text-3xl font-bold tracking-tight">Key Achievement</h2>
+                    <div class="mt-8 max-w-2xl mx-auto bento-box rounded-2xl p-8">
+                        <h3 class="text-xl font-bold text-amber-400">Sand Rover Competition Winner</h3>
+                        <p class="text-lg font-semibold text-zinc-300">Kshitij | IIT Kharagpur</p>
+                        <p class="mt-4 text-zinc-400">
+                           Led a multidisciplinary team to victory in a national-level robotics competition. I developed efficient control algorithms for an Arduino-based rover and co-designed its robust hardware, successfully navigating complex terrains to win first place.
+                        </p>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Projects Section -->
+            <section id="projects" class="py-20 lg:py-24">
+                <div class="text-center reveal">
+                    <h2 class="text-3xl font-bold tracking-tight">My Projects</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-zinc-400">A selection of my work in web development and AI.</p>
+                </div>
+
+                <!-- Bento Grid -->
+                <div class="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-[350px]">
+                    
+                    <!-- Vidora -->
+                    <div class="bento-box rounded-2xl p-6 flex flex-col justify-end lg:col-span-2 lg:row-span-2 reveal" data-title="Vidora - Video Sharing Platform" data-description="Developed a complex full-stack video-sharing platform similar to YouTube with enhanced features like comment sentiment analysis and community posts. Built a highly scalable backend with MongoDB and Cloudinary, ensuring efficient handling of large video files and robust user authentication. The fully responsive frontend features infinite scroll, filtering options, and advanced search functionality using MongoDB Atlas." data-github="https://github.com/ShashiKPD/vidora">
+                        <div class="content">
+                            <h3 class="text-xl font-bold">Vidora - Video Sharing Platform</h3>
+                            <p class="mt-2 text-zinc-300 text-sm">A full-stack, scalable video platform with advanced features like sentiment analysis and community posts.</p>
+                            <div class="flex flex-wrap gap-2 mt-4"><span class="tag">React.js</span><span class="tag">Node.js</span><span class="tag">MongoDB</span><span class="tag">Express.js</span></div>
+                        </div>
+                    </div>
+
+                    <!-- WhatsApp Translate Bot -->
+                    <div class="bento-box rounded-2xl p-6 flex flex-col justify-end reveal" data-title="WhatsApp Translate Bot" data-description="Engineered an intelligent WhatsApp bot that provides real-time, context-aware translations within group chats, leveraging LLaMA-3 for typo correction. Designed a multi-user system with per-user language preferences and implemented local caching with MongoDB to reduce API calls and improve translation speed." data-github="https://github.com/ShashiKPD/kpd-bot">
+                        <div class="content">
+                            <h3 class="text-xl font-bold">WhatsApp Translate Bot</h3>
+                            <p class="mt-2 text-zinc-300 text-sm">An intelligent bot for real-time, context-aware translation in WhatsApp group chats.</p>
+                            <div class="flex flex-wrap gap-2 mt-4"><span class="tag">Node.js</span><span class="tag">LLaMA-3</span><span class="tag">MongoDB</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Skills Section -->
+            <section id="skills" class="py-20 lg:py-24 reveal">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold tracking-tight">Technical Skills</h2>
+                    <div class="mt-8 max-w-4xl mx-auto flex flex-wrap justify-center gap-3">
+                        <span class="tag">C++</span><span class="tag">JavaScript</span><span class="tag">Python</span><span class="tag">React.js</span><span class="tag">Node.js</span><span class="tag">Express.js</span><span class="tag">HTML/CSS</span><span class="tag">MongoDB</span><span class="tag">MySQL</span><span class="tag">Git</span><span class="tag">Arduino</span><span class="tag">REST APIs</span><span class="tag">Data Structures & Algorithms</span><span class="tag">OOP</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contact Section -->
+            <section id="contact" class="text-center py-20 lg:py-32 reveal">
+                <h2 class="text-4xl font-bold tracking-tight">Get In Touch</h2>
+                <p class="mt-4 max-w-xl mx-auto text-zinc-400">I'm currently seeking new opportunities. Feel free to reach out if you think my skills are a good fit for your team.</p>
+                <a href="mailto:shashikpd1@gmail.com" class="inline-block mt-8 text-2xl font-medium text-white hover:text-blue-400 transition">
+                    shashikpd1@gmail.com
+                </a>
+            </section>
+        </main>
+
+        <footer class="text-center py-6">
+            <p class="text-zinc-500 text-sm">&copy; 2025 Shashikant Prasad. All Rights Reserved.</p>
+        </footer>
+    </div>
+
+    <!-- Modal Structure -->
+    <div id="modal-overlay">
+        <div id="modal-content" class="relative">
+            <button id="modal-close" class="focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <h3 id="modal-title" class="text-2xl font-bold mb-4"></h3>
+            <div class="space-y-4 text-zinc-300">
+                <p id="modal-description"></p>
+            </div>
+             <div id="modal-links" class="mt-6"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Three.js Background Logic ---
+            let scene, camera, renderer, particles;
+            let mouseX = 0, mouseY = 0;
+            const windowHalfX = window.innerWidth / 2;
+            const windowHalfY = window.innerHeight / 2;
+
+            function init3D() {
+                const canvas = document.getElementById('bg-canvas');
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
+                camera.position.z = 1000;
+
+                const particleCount = 10000;
+                const particlesGeometry = new THREE.BufferGeometry();
+                const posArray = new Float32Array(particleCount * 3);
+
+                for (let i = 0; i < particleCount * 3; i++) {
+                    posArray[i] = (Math.random() - 0.5) * 2000;
+                }
+                particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+                const particlesMaterial = new THREE.PointsMaterial({
+                    size: 1.5,
+                    color: 0x555555,
+                    transparent: true,
+                    opacity: 0.8,
+                    blending: THREE.AdditiveBlending
+                });
+
+                particles = new THREE.Points(particlesGeometry, particlesMaterial);
+                scene.add(particles);
+
+                renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+                document.addEventListener('mousemove', onDocumentMouseMove, false);
+                window.addEventListener('resize', onWindowResize, false);
+            }
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            function onDocumentMouseMove(event) {
+                mouseX = (event.clientX - windowHalfX) / 10;
+                mouseY = (event.clientY - windowHalfY) / 10;
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                const time = Date.now() * 0.00005;
+                camera.position.x += (mouseX - camera.position.x) * 0.05;
+                camera.position.y += (-mouseY - camera.position.y) * 0.05;
+                camera.lookAt(scene.position);
+                particles.rotation.y = time * 0.5;
+                renderer.render(scene, camera);
+            }
+            
+            init3D();
+            animate();
+
+            // --- Custom Cursor Logic ---
+            const cursor = document.getElementById('cursor');
+            const interactiveElements = document.querySelectorAll('a, .bento-box, button');
+
+            window.addEventListener('mousemove', e => {
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+            });
+
+            interactiveElements.forEach(el => {
+                el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
+                el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
+            });
+
+            // --- Modal Logic ---
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalClose = document.getElementById('modal-close');
+            const bentoBoxes = document.querySelectorAll('.bento-box');
+
+            bentoBoxes.forEach(box => {
+                box.addEventListener('click', () => {
+                    const title = box.dataset.title;
+                    const description = box.dataset.description;
+                    const github = box.dataset.github;
+
+                    document.getElementById('modal-title').innerText = title;
+                    document.getElementById('modal-description').innerText = description;
+                    
+                    const linksContainer = document.getElementById('modal-links');
+                    linksContainer.innerHTML = ''; // Clear previous links
+                    if (github) {
+                        linksContainer.innerHTML = `<a href="${github}" target="_blank" rel="noopener noreferrer" class="inline-block px-4 py-2 rounded-full bg-zinc-800 text-white font-semibold hover:bg-zinc-700 transition">View on GitHub</a>`;
+                    }
+                    
+                    modalOverlay.classList.add('active');
+                });
+            });
+
+            const closeModal = () => {
+                modalOverlay.classList.remove('active');
+            };
+
+            modalClose.addEventListener('click', closeModal);
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    closeModal();
+                }
+            });
+
+            // --- On-Scroll Animation Logic ---
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.reveal').forEach(el => {
+                observer.observe(el);
+            });
+        });
+    </script>
+</body>
+</html>
+
